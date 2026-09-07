@@ -37,7 +37,7 @@ BITBUCKET_ENABLE_WRITE=true
 BITBUCKET_ENABLE_DANGEROUS=true
 ```
 
-For read-only deployments, use a Bitbucket credential with read scopes only whenever possible. This provides defense in depth: the proxy rejects writes and Bitbucket itself should reject them as well.
+For read-only deployments, use a Bitbucket credential with the smallest read scopes possible. This provides defense in depth: the hardened proxy rejects writes and the credential itself should have as little write authority as Bitbucket permits.
 
 ## Installation
 
@@ -48,24 +48,44 @@ npm ci
 npm run build
 ```
 
-Run with an API token:
+The hardened proxy also loads a local `.env` file through `dotenv`, so credentials can be kept out of MCP client config files if preferred.
+
+## Bitbucket Cloud authentication
+
+### Atlassian API token with scopes — recommended
+
+Bitbucket Cloud app passwords are obsolete. Use an Atlassian API token created **with Bitbucket scopes**.
+
+For Bitbucket REST API Basic authentication, set your Atlassian account email as the username and the API token as the password:
 
 ```bash
-BITBUCKET_URL="https://api.bitbucket.org/2.0" \
-BITBUCKET_WORKSPACE="your-workspace" \
-BITBUCKET_TOKEN="your-read-only-token" \
-npm start
+BITBUCKET_URL="https://api.bitbucket.org/2.0"
+BITBUCKET_WORKSPACE="your-workspace"
+BITBUCKET_USERNAME="you@example.com"
+BITBUCKET_PASSWORD="your-scoped-api-token"
 ```
 
-Or username/app-password authentication:
+Recommended minimum scopes for this hardened MCP:
+
+- **Repositories: Read** — source code, branches, commits and file browsing
+- **Pull requests: Read** — optional, only if you want PR inspection
+- **Pipelines: Read** — optional, only if you want pipeline status/steps/logs
+
+Do not grant repository write/admin/delete, pull-request write, or pipeline write scopes for a read-only deployment.
+
+> Bitbucket's **Pull requests: Read** permission also permits PR comments at the API-token layer. The hardened MCP proxy still blocks comment-creation tools in read-only mode, but if you want the credential itself to be as restrictive as possible, omit the Pull requests scope and use the MCP only for repository/source inspection.
+
+### Bearer-style access token
+
+`BITBUCKET_TOKEN` is supported for credentials that are actually accepted by your Bitbucket endpoint as a Bearer token (for example appropriate OAuth/access-token flows):
 
 ```bash
-BITBUCKET_URL="https://api.bitbucket.org/2.0" \
-BITBUCKET_WORKSPACE="your-workspace" \
-BITBUCKET_USERNAME="your-email" \
-BITBUCKET_PASSWORD="your-app-password" \
-npm start
+BITBUCKET_URL="https://api.bitbucket.org/2.0"
+BITBUCKET_WORKSPACE="your-workspace"
+BITBUCKET_TOKEN="your-bearer-access-token"
 ```
+
+Do not place an Atlassian user API token in `BITBUCKET_TOKEN` unless your specific token flow is documented to use Bearer authentication; for normal scoped Atlassian API tokens use `BITBUCKET_USERNAME` + `BITBUCKET_PASSWORD` as shown above.
 
 `BITBUCKET_URL` can also point at a supported self-hosted Bitbucket Server endpoint.
 
@@ -75,9 +95,9 @@ npm start
 | --- | --- | --- |
 | `BITBUCKET_URL` | Bitbucket API base URL | `https://api.bitbucket.org/2.0` |
 | `BITBUCKET_WORKSPACE` | Default workspace | unset |
-| `BITBUCKET_TOKEN` | Access token; prefer read-only scope | unset |
-| `BITBUCKET_USERNAME` | Username/email used with password auth | unset |
-| `BITBUCKET_PASSWORD` | App password/API token used with username auth | unset |
+| `BITBUCKET_USERNAME` | Atlassian account email/username for Basic auth | unset |
+| `BITBUCKET_PASSWORD` | Scoped Atlassian API token/password used with Basic auth | unset |
+| `BITBUCKET_TOKEN` | Bearer access token for token types that support Bearer auth | unset |
 | `BITBUCKET_ENABLE_WRITE` | Expose non-delete write operations | `false` |
 | `BITBUCKET_ENABLE_DANGEROUS` | Expose delete-like tools; requires write mode too | `false` |
 | `BITBUCKET_PROXY_DEBUG` | Minimal credential-redacted proxy diagnostics on stderr | `false` |
