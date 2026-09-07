@@ -1,0 +1,49 @@
+name: Security CI
+
+on:
+  pull_request:
+    branches: ["master"]
+  push:
+    branches: ["security/readonly-default", "master"]
+
+permissions:
+  contents: read
+
+jobs:
+  hardened-readonly:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Unit security and pagination tests
+        run: npm test -- --runInBand
+
+      - name: Build hardened public entrypoint
+        run: npm run build
+
+      - name: Verify hardened build layout
+        run: |
+          test -f dist/index.js
+          test -f dist/core.js
+          test -f dist/security.js
+          grep -q "Blocked tool call" dist/index.js
+
+      - name: End-to-end MCP read-only security smoke test
+        run: timeout 30s node scripts/security-smoke.mjs
+
+      - name: Verify publishable package layout
+        run: npm pack --dry-run
+
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
