@@ -3,6 +3,11 @@ import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 import {
+  callReadonlyExtensionTool,
+  isReadonlyExtensionTool,
+  READONLY_EXTENSION_TOOLS,
+} from "./readonly-tools.js";
+import {
   blockedToolMessage,
   isToolAllowed,
   isTruthyEnv,
@@ -31,15 +36,24 @@ function writeJson(message: unknown): void {
   process.stdout.write(`${JSON.stringify(message)}\n`);
 }
 
-function blockedError(request: JsonRpcMessage, toolName: string): JsonRpcMessage {
+function jsonRpcError(
+  request: JsonRpcMessage,
+  code: number,
+  message: string
+): JsonRpcMessage {
   return {
     jsonrpc: request.jsonrpc ?? "2.0",
     id: request.id ?? null,
-    error: {
-      code: -32601,
-      message: blockedToolMessage(toolName, writeEnabled, dangerousEnabled),
-    },
+    error: { code, message: redactText(message) },
   };
+}
+
+function blockedError(request: JsonRpcMessage, toolName: string): JsonRpcMessage {
+  return jsonRpcError(
+    request,
+    -32601,
+    blockedToolMessage(toolName, writeEnabled, dangerousEnabled)
+  );
 }
 
 function filterToolsResponse(message: unknown): unknown {
@@ -52,17 +66,33 @@ function filterToolsResponse(message: unknown): unknown {
   const result = response.result;
   if (!result || !Array.isArray(result.tools)) return message;
 
+  const allowedCoreTools = result.tools.filter((tool) => {
+    if (!tool || typeof tool !== "object") return false;
+    const name = (tool as Record<string, unknown>).name;
+    return typeof name === "string"
+      ? isToolAllowed(name, writeEnabled, dangerousEnabled)
+      : false;
+  });
+
+  const existingNames = new Set(
+    allowedCoreTools
+      .map((tool) =>
+        tool && typeof tool === "object"
+          ? (tool as Record<string, unknown>).name
+          : undefined
+      )
+      .filter((name): name is string => typeof name === "string")
+  );
+
+  const extensionTools = READONLY_EXTENSION_TOOLS.filter(
+    (tool) => !existingNames.has(tool.name)
+  );
+
   return {
     ...response,
     result: {
       ...result,
-      tools: result.tools.filter((tool) => {
-        if (!tool || typeof tool !== "object") return false;
-        const name = (tool as Record<string, unknown>).name;
-        return typeof name === "string"
-          ? isToolAllowed(name, writeEnabled, dangerousEnabled)
-          : false;
-      }),
+      tools: [...allowedCoreTools, ...extensionTools],
     },
   };
 }
@@ -98,6 +128,25 @@ core.on("exit", (code, signal) => {
   if (process.exitCode === undefined) process.exitCode = code ?? 0;
 });
 
+async function handleReadonlyExtensionCall(
+  request: JsonRpcMessage,
+  toolName: string,
+  args: unknown
+): Promise<void> {
+  if (request.id === undefined) return;
+  try {
+    const result = await callReadonlyExtensionTool(toolName, args);
+    writeJson({
+      jsonrpc: request.jsonrpc ?? "2.0",
+      id: request.id,
+      result,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Bitbucket read request failed";
+    writeJson(jsonRpcError(request, -32603, message));
+  }
+}
+
 const clientInput = createInterface({ input: process.stdin, crlfDelay: Infinity });
 clientInput.on("line", (line) => {
   if (!line.trim()) return;
@@ -123,13 +172,21 @@ clientInput.on("line", (line) => {
     const request = item as JsonRpcMessage;
     if (request.method === "tools/call") {
       const toolName = request.params?.name;
-      if (
-        typeof toolName === "string" &&
-        !isToolAllowed(toolName, writeEnabled, dangerousEnabled)
-      ) {
-        safeDebug(`Blocked tool call: ${toolName}`);
-        if (request.id !== undefined) writeJson(blockedError(request, toolName));
-        continue;
+      if (typeof toolName === "string") {
+        if (isReadonlyExtensionTool(toolName)) {
+          void handleReadonlyExtensionCall(
+            request,
+            toolName,
+            request.params?.arguments
+          );
+          continue;
+        }
+
+        if (!isToolAllowed(toolName, writeEnabled, dangerousEnabled)) {
+          safeDebug(`Blocked tool call: ${toolName}`);
+          if (request.id !== undefined) writeJson(blockedError(request, toolName));
+          continue;
+        }
       }
     }
 
