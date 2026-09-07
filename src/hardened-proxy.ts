@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import "dotenv/config";
 import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
