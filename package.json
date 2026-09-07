@@ -25,6 +25,7 @@
     "publish:major": "npm version major && npm publish",
     "release": "npm run publish:patch",
     "test": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js",
+    "security:smoke": "node scripts/security-smoke.mjs",
     "lint": "eslint src/**/*.ts",
     "inspector": "npx @modelcontextprotocol/inspector dist/index.js",
     "registry:manifest": "node scripts/generate-registry-manifest.cjs",
@@ -50,8 +51,8 @@
     "url": "https://github.com/MatanYemini/bitbucket-mcp/issues"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "1.1.1",
-    "axios": "^1.6.5",
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "axios": "^1.20.0",
     "dotenv": "^17.3.1",
     "winston": "^3.11.0"
   },
