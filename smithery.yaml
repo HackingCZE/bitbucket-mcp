@@ -10,76 +10,52 @@ startCommand:
         default: "https://api.bitbucket.org/2.0"
       BITBUCKET_TOKEN:
         type: string
-        description: "Bitbucket access token for authentication"
+        description: "Bitbucket access token for authentication. Prefer a read-only token."
       BITBUCKET_USERNAME:
         type: string
         description: "Bitbucket username (used with password authentication)"
       BITBUCKET_PASSWORD:
         type: string
-        description: "Bitbucket password (used with username authentication)"
+        description: "Bitbucket app password/API token (used with username authentication)"
         format: password
       BITBUCKET_WORKSPACE:
         type: string
         description: "Default Bitbucket workspace to use when not specified"
+      BITBUCKET_ENABLE_WRITE:
+        type: string
+        description: "Explicit opt-in for non-read operations. Default is false/read-only."
+        default: "false"
       BITBUCKET_ENABLE_DANGEROUS:
         type: string
-        description: "Set to true to enable dangerous tools (e.g., deletions)"
-      BITBUCKET_LOG_DISABLE:
+        description: "Second opt-in for destructive delete operations; requires BITBUCKET_ENABLE_WRITE=true"
+        default: "false"
+      BITBUCKET_PROXY_DEBUG:
         type: string
-        description: "Disable file logging when set to true/1"
-      BITBUCKET_LOG_FILE:
-        type: string
-        description: "Absolute path to a specific log file"
-      BITBUCKET_LOG_DIR:
-        type: string
-        description: "Directory where logs will be written (default is OS-specific)"
-      BITBUCKET_LOG_PER_CWD:
-        type: string
-        description: "When true, create a per-working-directory subfolder under BITBUCKET_LOG_DIR"
+        description: "Enable minimal credential-redacted proxy diagnostics on stderr"
+        default: "false"
     oneOf:
       - required: ["BITBUCKET_TOKEN"]
       - required: ["BITBUCKET_USERNAME", "BITBUCKET_PASSWORD"]
   commandFunction: |-
     (config) => {
-      // Setup environment variables based on provided config
       const env = Object.assign({}, process.env);
-      
-      // Set production environment
       env.NODE_ENV = 'production';
-      
-      // Add Bitbucket configuration
-      if (config.BITBUCKET_URL) {
-        env.BITBUCKET_URL = config.BITBUCKET_URL;
-      }
-      if (config.BITBUCKET_TOKEN) {
-        env.BITBUCKET_TOKEN = config.BITBUCKET_TOKEN;
-      }
-      if (config.BITBUCKET_USERNAME) {
-        env.BITBUCKET_USERNAME = config.BITBUCKET_USERNAME;
-      }
-      if (config.BITBUCKET_PASSWORD) {
-        env.BITBUCKET_PASSWORD = config.BITBUCKET_PASSWORD;
-      }
-      if (config.BITBUCKET_WORKSPACE) {
-        env.BITBUCKET_WORKSPACE = config.BITBUCKET_WORKSPACE;
-      }
-      if (config.BITBUCKET_ENABLE_DANGEROUS) {
-        env.BITBUCKET_ENABLE_DANGEROUS = config.BITBUCKET_ENABLE_DANGEROUS;
-      }
-      // Logging configuration
-      if (config.BITBUCKET_LOG_DISABLE) {
-        env.BITBUCKET_LOG_DISABLE = config.BITBUCKET_LOG_DISABLE;
-      }
-      if (config.BITBUCKET_LOG_FILE) {
-        env.BITBUCKET_LOG_FILE = config.BITBUCKET_LOG_FILE;
-      }
-      if (config.BITBUCKET_LOG_DIR) {
-        env.BITBUCKET_LOG_DIR = config.BITBUCKET_LOG_DIR;
-      }
-      if (config.BITBUCKET_LOG_PER_CWD) {
-        env.BITBUCKET_LOG_PER_CWD = config.BITBUCKET_LOG_PER_CWD;
-      }
-      
+
+      if (config.BITBUCKET_URL) env.BITBUCKET_URL = config.BITBUCKET_URL;
+      if (config.BITBUCKET_TOKEN) env.BITBUCKET_TOKEN = config.BITBUCKET_TOKEN;
+      if (config.BITBUCKET_USERNAME) env.BITBUCKET_USERNAME = config.BITBUCKET_USERNAME;
+      if (config.BITBUCKET_PASSWORD) env.BITBUCKET_PASSWORD = config.BITBUCKET_PASSWORD;
+      if (config.BITBUCKET_WORKSPACE) env.BITBUCKET_WORKSPACE = config.BITBUCKET_WORKSPACE;
+      if (config.BITBUCKET_ENABLE_WRITE) env.BITBUCKET_ENABLE_WRITE = config.BITBUCKET_ENABLE_WRITE;
+      if (config.BITBUCKET_ENABLE_DANGEROUS) env.BITBUCKET_ENABLE_DANGEROUS = config.BITBUCKET_ENABLE_DANGEROUS;
+      if (config.BITBUCKET_PROXY_DEBUG) env.BITBUCKET_PROXY_DEBUG = config.BITBUCKET_PROXY_DEBUG;
+
+      // Hardened entrypoint disables the legacy core file logger unconditionally.
+      env.BITBUCKET_LOG_DISABLE = 'true';
+      delete env.BITBUCKET_LOG_FILE;
+      delete env.BITBUCKET_LOG_DIR;
+      delete env.BITBUCKET_LOG_PER_CWD;
+
       return { command: 'node', args: ['dist/index.js'], env };
     }
 build:
