@@ -10,7 +10,7 @@ const manifest = {
   name: 'Bitbucket MCP',
   slug: 'bitbucket-mcp',
   version: pkg.version,
-  description: pkg.description,
+  description: `${pkg.description} (hardened read-only by default)`,
   homepage: pkg.homepage,
   repository: pkg.repository?.url?.replace(/^git\+/, '') || null,
   license: pkg.license,
@@ -32,7 +32,7 @@ const manifest = {
       },
       BITBUCKET_TOKEN: {
         type: 'string',
-        description: 'Bitbucket access token for authentication'
+        description: 'Bitbucket access token for authentication. Prefer read-only scope.'
       },
       BITBUCKET_USERNAME: {
         type: 'string',
@@ -40,32 +40,27 @@ const manifest = {
       },
       BITBUCKET_PASSWORD: {
         type: 'string',
-        description: 'Bitbucket app password (used with username authentication)',
+        description: 'Bitbucket app password/API token (used with username authentication)',
         format: 'password'
       },
       BITBUCKET_WORKSPACE: {
         type: 'string',
         description: 'Default Bitbucket workspace to use when not specified'
       },
+      BITBUCKET_ENABLE_WRITE: {
+        type: 'string',
+        description: 'Explicit opt-in for write operations. Default false/read-only.',
+        default: 'false'
+      },
       BITBUCKET_ENABLE_DANGEROUS: {
         type: 'string',
-        description: 'Set to true to enable dangerous tools (e.g., deletions)'
+        description: 'Second opt-in for destructive delete operations; requires write mode.',
+        default: 'false'
       },
-      BITBUCKET_LOG_DISABLE: {
+      BITBUCKET_PROXY_DEBUG: {
         type: 'string',
-        description: 'Disable file logging when set to true/1'
-      },
-      BITBUCKET_LOG_FILE: {
-        type: 'string',
-        description: 'Absolute path to a specific log file'
-      },
-      BITBUCKET_LOG_DIR: {
-        type: 'string',
-        description: 'Directory where logs will be written (default is OS-specific)'
-      },
-      BITBUCKET_LOG_PER_CWD: {
-        type: 'string',
-        description: 'When true, create a per-working-directory subfolder under BITBUCKET_LOG_DIR'
+        description: 'Enable minimal credential-redacted proxy diagnostics on stderr.',
+        default: 'false'
       }
     },
     oneOf: [
@@ -75,7 +70,7 @@ const manifest = {
   },
   documentation: {
     guide: 'https://github.com/modelcontextprotocol/registry/blob/main/docs/guides/publishing/publish-server.md',
-    setup: 'See README.md for full configuration instructions.'
+    setup: 'See README.md for hardened read-only configuration and explicit write opt-in.'
   }
 };
 
