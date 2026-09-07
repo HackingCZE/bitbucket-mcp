@@ -4,14 +4,15 @@ on:
   pull_request:
     branches: ["master"]
   push:
-    branches: ["security/readonly-default"]
+    branches: ["security/readonly-default", "master"]
 
 permissions:
   contents: read
 
 jobs:
-  test-build:
+  hardened-readonly:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -22,17 +23,27 @@ jobs:
           node-version: 22
           cache: npm
 
-      - name: Install dependencies
+      - name: Install locked dependencies
         run: npm ci
 
-      - name: Run tests
-        run: npm test
+      - name: Unit security and pagination tests
+        run: npm test -- --runInBand
 
-      - name: Build hardened entrypoint
+      - name: Build hardened public entrypoint
         run: npm run build
 
       - name: Verify hardened build layout
         run: |
           test -f dist/index.js
           test -f dist/core.js
-          grep -q "hardened-proxy" dist/index.js || grep -q "Blocked tool call" dist/index.js
+          test -f dist/security.js
+          grep -q "Blocked tool call" dist/index.js
+
+      - name: End-to-end MCP read-only security smoke test
+        run: timeout 30s node scripts/security-smoke.mjs
+
+      - name: Verify publishable package layout
+        run: npm pack --dry-run
+
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
